@@ -1,4 +1,4 @@
 module testN
     integer :: test = 0;
-    integer :: capa = 5;
+    integer :: capa = 0;
 end module
