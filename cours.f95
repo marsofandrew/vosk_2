@@ -59,7 +59,7 @@ end program CurWork2
             z12(j) = z(j-1) + Hz/2
         enddo
 
-	print *, 'start simulation'
+        print *, 'start simulation'
 
         1 format (100es17.5)
         2 format (7a7)
@@ -287,13 +287,13 @@ end program CurWork2
 
     Subroutine PrintMatrix(matrix,Nr,Nz)
         integer Nr,Nz
-        real matrix(Nr-1,0:Nz)
+        real matrix(0:Nr-1,0:Nz)
 
         1 format (100es17.5)
         2 format (7a7)
         open (1, file="output.txt" )
 
-        do i=1,Nr-1
+        do i=0,Nr-1
             write (1,1), (matrix(i,j), j=0,Nz)
         enddo
     End subroutine
