@@ -6,12 +6,11 @@ program CurWork2
     real :: R0 = 1.0, R1 = 3.0, L = 2.0
 
     test = 0
-    capa = 5
+    capa = 0
     open (1, file="output.txt" )
     do while (N <= 128)
         write (1,*) "N= ", N
         call Simulation(N,N,R0,R1,L,test)
-        print *, 'loop'
         N = 2**nn
         nn= nn+1
     enddo
@@ -72,7 +71,10 @@ end program CurWork2
         call InitStartV(Nr,Nz,V,r,L)
         !print *, 'V initialized'
         call InitF(R0,R1,L,Nr,Nz,Hr,Hz,r,r12,z,F)
-
+	do i = 0, Nr-1
+		print *, (F(i, j), j=0, Nz)
+	enddo
+	
         !print *, 'F initialized'
 
         call FindNev(Nr,Nz,U,F,C_A,C_B,C_C)
@@ -109,7 +111,7 @@ end program CurWork2
         B = 0
         C = 0
 
-        A(0) = (2*(Hz**2)/((Hr**2)*r(0))) * (r12(1)*funcK(r12(1))+capa) +2
+        A(0) = (2*(Hz**2)/((Hr**2)*r(0))) * (r12(1)*funcK(r12(1))+capa) + 2.0
         B(0) = -(2*(Hz**2)/((Hr**2)*r(0))) * r12(1)*funcK(r12(1))
         do i = 1 , Nr-1
             A(i)= ((Hz**2)/(Hr**2))*( (r12(i+1)/r(i))*funcK(r12(i+1)) + (r12(i)/r(i))*funcK(r12(i)) ) + 2.0
@@ -197,7 +199,7 @@ end program CurWork2
         real alpha
         real clk(0:Nr-1)
         integer :: index = 0, j = 0
-        real buf_v(Nr-1), buf_f(Nr-1)
+        real buf_v(0:Nr-1), buf_f(0:Nr-1)
         p = 0
         S = 0
         n_real = ( log(float(Nz))/log(float(2)) )
@@ -238,7 +240,7 @@ end program CurWork2
         real alpha
         real clk(0:Nr-1)
         integer index , j ,k
-        real buf_v(Nr-1), buf_f(Nr-1)
+        real buf_v(0:Nr-1), buf_f(0:Nr-1)
 
         n_real = ( log(float(Nz))/log(float(2)) )
         n_count = int(n_real)
