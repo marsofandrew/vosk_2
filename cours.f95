@@ -5,12 +5,12 @@ program CurWork2
     integer :: N = 4, nn = 3
     real :: R0 = 1.0, R1 = 3.0, L = 2.0
 
-    test = 0
-    capa = 0
+    test = 2
+    capa = 2
     open (1, file="output.txt" )
     do while (N <= 128)
         write (1,*) "N= ", N
-        call Simulation(N,N,R0,R1,L,test)
+        call Simulation(N,N,R0,R1,L,test, capa)
         N = 2**nn
         nn= nn+1
     enddo
@@ -20,7 +20,7 @@ end program CurWork2
 !-----------------------------------------------------------!
 !                       Subroutines                         !
 !-----------------------------------------------------------!
-    Subroutine Simulation(Nr,Nz,R0,R1,L,test)
+    Subroutine Simulation(Nr,Nz,R0,R1,L,test, capa)
         integer Nr, Nz
         real R0,R1,L
         real Hr,Hz
@@ -37,6 +37,7 @@ end program CurWork2
         real p(0:Nr-1,0:Nz)   ! pj = Fj in method of complete reduction
         real :: EpsMax = 0.0
         integer test
+	real capa
 !----------------------STEP---------------------------
         real NNr,NNz
 
@@ -66,14 +67,12 @@ end program CurWork2
 
         call FindU(Nr,Nz,r,z,U)
 
-        call FillMatrixC(Nr,C_A,C_B,C_C,Hr,Hz,r,r12)
+        call FillMatrixC(Nr,C_A,C_B,C_C,Hr,Hz,r,r12, capa)
+	
         !print *, 'matrix C intialized'
         call InitStartV(Nr,Nz,V,r,L)
         !print *, 'V initialized'
-        call InitF(R0,R1,L,Nr,Nz,Hr,Hz,r,r12,z,F)
-	do i = 0, Nr-1
-		print *, (F(i, j), j=0, Nz)
-	enddo
+        call InitF(R0,R1,L,Nr,Nz,Hr,Hz,r,r12,z,F, capa)
 	
         !print *, 'F initialized'
 
@@ -89,8 +88,8 @@ end program CurWork2
 
         !print *, 'rw is finished'
 
-        write (1,2)"V="
-        call PrintMatrix(V,Nr,Nz)
+        !write (1,2)"V="
+        !call PrintMatrix(V,Nr,Nz)
         call CalcEps(Nr,Nz,r,z,U,V,EpsMax)
 
         !print *, 'eps is counted'
@@ -100,16 +99,18 @@ end program CurWork2
 
     End subroutine
 
-    Subroutine FillMatrixC(Nr,A,B,C,Hr,Hz,r,r12)
+    Subroutine FillMatrixC(Nr,A,B,C,Hr,Hz,r,r12, capa)
         integer Nr
         real A(0:Nr-1)
         real B(0:Nr-2)
         real C(1:Nr-1)
         real Hr,Hz
         real r(0:Nr),r12(1:Nr)
+	real capa
         A = 0
         B = 0
         C = 0
+	
 
         A(0) = (2*(Hz**2)/((Hr**2)*r(0))) * (r12(1)*funcK(r12(1))+capa) + 2.0
         B(0) = -(2*(Hz**2)/((Hr**2)*r(0))) * r12(1)*funcK(r12(1))
@@ -137,18 +138,20 @@ end program CurWork2
         enddo
     End subroutine
 
-    Subroutine InitF(R0,R1,L,Nr,Nz,Hr,Hz,r,r12,z,F)
+    Subroutine InitF(R0,R1,L,Nr,Nz,Hr,Hz,r,r12,z,F, capa)
         real R0,R1,L
         integer Nr, Nz
         real Hr,Hz
         real r(0:Nr),r12(1:Nr),z(0:Nz)
         real F(0:Nr-1,0:Nz)
+	real capa
         F = 0
         do j = 1, Nz-1
             F(Nr-1,j) = (Hz**2)*funcF(r(Nr-1),z(j)) + ( (Hz**2)/(Hr**2) )*(r12(Nr)/r(Nr-1))*funcK(r12(Nr))*fi2(R1,z(j))
+	    F(0, j) = (Hz**2)*funcF(r(i),z(j)) + 2 * (Hz**2)/((Hr**2)*r(0)) * fi1(R0,z(j))
         enddo
 
-        do i = 0, Nr-2
+        do i = 1, Nr-2
             do j = 1, Nz-1
                 F(i,j) = (Hz**2)*funcF(r(i),z(j))
             enddo
@@ -160,31 +163,28 @@ end program CurWork2
         enddo
     End subroutine
 
-    Subroutine SweepMethod(N,A,B,C,V,F)
-        integer N
-        real A(0:N-1) !   main diag
-        real B(0:N-2) !   naddiag
-        real C(1:N-1)!  poddiag
-        real V(0:N-1), F(0:N-1)
+    Subroutine SweepMethod(N,C,B,A,V,F)
+	integer N
+	real A(1:N-1) ! poddiag
+	real C(0:N-1) ! main diag
+	real B(0:N-2) ! naddiag
+	real V(0:N-1), F(0:N-1)
+	real Alpha(1:N-1), Betta(1:N-1)
 
-        real Alpha(1:N-1), Betta(1:N-1)
-        ! forward process
-        Alpha(1) = - B(0)/A(0)
-        Betta(1) = F(0)/A(0)
-        do i = 1,N-2
-            if(abs(Alpha(i))>=1) then
-                print *, "Alpha >=1  (badly)"
-            else
-                Alpha(i+1) = -B(i)/(C(i)*Alpha(i)+A(i))
-                Betta(i+1) = (F(i) - C(i)*Betta(i))/(C(i)*Alpha(i)+A(i))
-            endif
-        enddo
-        V(N-1) = (F(N-1) - C(N-1)*Betta(N-1))/(C(N-1)*Alpha(N-1)+A(N-1))
-        ! reverce process
-        do i = N-2,0,-1
-            V(i) = Alpha(i+1)*V(i+1)+Betta(i+1)
-        enddo
-    End subroutine
+	! forward process
+	Alpha(1) = -B(0)/C(0)
+	Betta(1) = F(0)/C(0)
+
+	do i = 1, N-2
+	Alpha(i+1) = -B(i)/ (C(i) + A(i) * Alpha(i))
+	Betta(i+1) = (F(i) - A(i) * Betta(i)) / (C(i) + A(i) * Alpha(i))
+	enddo
+	V(N-1) = (F(N-1) - A(N-1) * Betta(N-1)) / (C(N-1) + A(N-1) * Alpha(N-1))
+	! reverce process
+	do i = N-2, 0, -1
+	V(i) = Alpha(i+1)*V(i+1)+Betta(i+1)
+	enddo
+    End subroutine SweepMethod 
 
     Subroutine ForwardWay(Nr,Nz,a,b,c,F,p)
         integer Nz,Nr
@@ -265,8 +265,8 @@ end program CurWork2
 
     Subroutine FClk(l,k,A,Clk,Nr)
         integer l,k,Nr
-        real A(Nr-1)
-        real Clk(Nr-1)
+        real A(0:Nr-1)
+        real Clk(0:Nr-1)
         real pi
             pi = 3.141592653
             Clk = A - 2*COS( ((2*l-1)*pi)/(2**(k+1)) )
@@ -275,9 +275,9 @@ end program CurWork2
     Subroutine CalcEps(Nr,Nz,r,z,U,V,EpsMax)
         integer Nr, Nz
         real r(0:Nr), z(0:Nz)
-        real V(Nr-1,0:Nz)
-        real U(Nr-1,0:Nz)
-        real Eps(Nr-1,0:Nz)
+        real V(0:Nr-1,0:Nz)
+        real U(0:Nr-1,0:Nz)
+        real Eps(0:Nr-1,0:Nz)
         EpsMax = 0.0
         do i = 0, Nr-1
             do j = 0, Nz
@@ -302,7 +302,7 @@ end program CurWork2
 
     Subroutine PrintVectorNr(vector,Nr)
         integer Nr
-        real vector(Nr-1)
+        real vector(0:Nr-1)
 
         1 format (100f17.5)
         2 format (7a7)
@@ -338,7 +338,7 @@ end program CurWork2
         real a(0:Nr-1)     !  main diag matrix C
         real b(0:Nr-2)     !  naddiag matrix C
         real c(1:Nr-1)   !  poddiag matrix C
-        real dopF(Nr-1)
+        real dopF(0:Nr-1)
 
         Nev(:,0) = F(:,0) - U(:,0)
         Nev(:,Nz) = F(:,Nz) - U(:,Nz)
@@ -350,16 +350,16 @@ end program CurWork2
 
     Subroutine MatrixMultVector(Nr,Nz,a,b,c,V,F)
         integer Nr,Nz
-        real a(Nr-1)     !  main diag matrix C
-        real b(Nr-2)     !  naddiag matrix C
-        real c(2:Nr-1)   !  poddiag matrix C
-        real V(Nr-1)
-        real F(Nr-1)
+        real a(0:Nr-1)     !  main diag matrix C
+        real b(0:Nr-2)     !  naddiag matrix C
+        real c(1:Nr-1)   !  poddiag matrix C
+        real V(0:Nr-1)
+        real F(0:Nr-1)
 
-        F(1) = a(1)*V(1) + b(1)*V(2)
+        F(0) = a(0)*V(0) + b(0)*V(0)
         F(Nr-1) = c(Nr-1)*V(Nr-2) + a(Nr-1)*V(Nr-1)
 
-        do i = 2,Nr-2
+        do i = 1,Nr-2
             F(i) = c(i)*V(i-1) + a(i)*V(i)+b(i)*V(i+1)
         enddo
 
@@ -376,9 +376,9 @@ end program CurWork2
             case(0)
                 funcU = 1.0
             case(1)
-                funcU = 3*r+z
+                funcU = r
             case(2)
-                funcU = exp(r) + z
+                funcU = r**2 + z**2
 
             case default
                 funcU = 1.0
@@ -394,9 +394,9 @@ end program CurWork2
             case(0)
                 funcF = 0.0
             case(1)
-                funcF = -6.0
+                funcF = -1.0/r
             case(2)
-                funcF = -exp(r)*( 2 + r )
+                funcF = -8*r**2-2
             case(3)
                 funcF = -14*(r**2) + 16*(z**2) - 24*(r**4) + 8*(r**2)*(z**2)
             case default
@@ -413,9 +413,9 @@ end program CurWork2
             case(0)
                 funcK = 1.0
             case(1)
-                funcK = r
+                funcK = 1.0
             case(2)
-                funcK = r
+                funcK = r**2
             case(3)
                 funcK = 1 + r**2
             case default
@@ -427,12 +427,13 @@ end program CurWork2
     use testN
         real R0,z
         real fi1
-
         select case (test)
             case(0)
-                fi1 = 1.0
-            case(3)
-                fi1 = 1 - z**2 - z**4
+                fi1 = capa
+            case(1)
+                fi1 = capa*R0 - 1
+	    case(2)
+		fi1 = capa*(R0**2-z**2)-2*R0**3
             case default
                 fi1 = capa*funcU(R0,z) - 5; !-5 is fi1(z_i)
         end select
